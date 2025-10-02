@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <title>A ↔ B Token Bridge</title>
+  <script src="https://cdn.jsdelivr.net/npm/ethers@5.7.2/dist/ethers.umd.min.js"></script>
+  <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+</head>
+<body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen">
+
+  <div class="bg-white shadow-lg rounded-2xl p-8 w-96 text-center">
+    <h1 class="text-2xl font-bold mb-6">A ↔ B Token Bridge</h1>
+
+    <!-- MetaMask 연결 버튼 -->
+    <button id="connectButton" 
+      class="mb-4 w-full bg-blue-500 text-white py-2 px-4 rounded-lg hover:bg-blue-600">
+      메타마스크 연결
+    </button>
+
+    <!-- 교환할 수량 입력 필드 -->
+    <input id="amountInput" type="number" placeholder="교환할 수량" 
+      class="w-full p-2 border rounded mb-4 text-center">
+
+    <!-- A, B 토큰 승인 버튼 -->
+    <div class="flex gap-2 mb-2">
+      <button id="approveAButton" 
+        class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600">
+        A 승인
+      </button>
+      <button id="approveBButton" 
+        class="flex-1 bg-yellow-500 text-white py-2 px-4 rounded-lg hover:bg-yellow-600">
+        B 승인
+      </button>
+    </div>
+
+    <!-- A → B / B → A 교환 버튼 -->
+    <div class="flex gap-2 mb-2">
+      <button id="swapAtoBButton" 
+        class="flex-1 bg-green-500 text-white py-2 px-4 rounded-lg hover:bg-green-600">
+        A → B 교환
+      </button>
+      <button id="swapBtoAButton" 
+        class="flex-1 bg-indigo-500 text-white py-2 px-4 rounded-lg hover:bg-indigo-600">
+        B → A 교환
+      </button>
+    </div>
+
+    <!-- 컨트랙트 잔고 확인 버튼 -->
+    <button id="balanceButton" 
+      class="w-full bg-purple-500 text-white py-2 px-4 rounded-lg hover:bg-purple-600">
+      컨트랙트 잔고 확인
+    </button>
+
+    <!-- 네트워크 및 계정 정보 표시 -->
+    <div id="networkStatus" class="mt-4 text-gray-600 text-sm"></div>
+    <div id="account" class="mt-4 text-lg text-gray-800"></div>
+
+    <!-- 토큰 잔액 표시 -->
+    <div id="balanceTMZ" class="mt-2 text-gray-700"></div>
+    <div id="balanceTMZ2" class="mt-2 text-gray-700"></div>
+
+    <!-- 상태 표시용 -->
+    <div id="status" class="mt-4 text-gray-600 text-sm"></div> <!-- 추가된 부분 -->
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
