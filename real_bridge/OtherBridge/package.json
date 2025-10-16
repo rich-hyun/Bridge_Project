@@ -1,0 +1,13 @@
+{
+  "name": "bridge-relayer",
+  "version": "1.0.0",
+  "description": "A simple relayer for the JKK-TMZ bridge",
+  "main": "relayer.js",
+  "type": "module",
+  "scripts": {
+    "start": "node relayer.js"
+  },
+  "dependencies": {
+    "ethers": "^5.7.2"
+  }
+}
