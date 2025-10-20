@@ -3,8 +3,6 @@
 // ethers.js 라이브러리를 가져옵니다.
 import { ethers } from "ethers";
 
-// --- [!! 중요 !!] 사용자 설정이 필요한 부분 ---
-
 // 1. Relayer 지갑의 개인 키 (Private Key)
 //    이 키는 절대로 외부에 노출되면 안 됩니다. 실제 운영 시에는 환경 변수 등을 사용하세요.
 const RELAYER_PRIVATE_KEY = "5e491848fb78c1928f81aa5c42d7374d0ce52ddb44dedda444e1e4d16c85dd39"; // <== 여기에 Relayer 지갑의 개인 키를 입력하세요.

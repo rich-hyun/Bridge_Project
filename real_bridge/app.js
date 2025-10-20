@@ -313,3 +313,76 @@ function bindAllUi() {
     checkBalances();
   }
 })();
+
+// [ADD] JKK-Net RPC URL (relayer.js와 동일)
+const JKK_RPC_URL_FRONT = "http://203.252.147.199";
+
+// [ADD] JKK-Net chain params (0x1e1a == 7706)
+const CHAIN_PARAMS_JKK = {
+  chainId: "0x1e1a",
+  chainName: "JKK-Net",
+  rpcUrls: [JKK_RPC_URL_FRONT],
+  nativeCurrency: { name: "JKK", symbol: "JKK", decimals: 18 },
+  blockExplorerUrls: []
+};
+
+// [ADD] 모든 카드의 status 텍스트 갱신
+function updateAllStatus(text) {
+  SUFFIXES.forEach(suf => setText("status", suf, text));
+}
+
+
+// [ADD] 공통 네트워크 전환 함수
+async function switchToChain(params) {
+  if (!window.ethereum) {
+    alert("MetaMask가 필요합니다.");
+    return;
+  }
+  try {
+    updateAllStatus(`${params.chainName}로 전환 요청 중... (MetaMask 확인)`);
+    await window.ethereum.request({
+      method: "wallet_switchEthereumChain",
+      params: [{ chainId: params.chainId }]
+    });
+    updateAllStatus(`${params.chainName} 전환 성공 ✅`);
+    // 전환 후 체인정보/잔액 UI 새로고침
+    await displayNetworkInfo();
+    initContracts();
+    await checkBalances();
+  } catch (err) {
+    // 4902: 지갑에 해당 체인이 없음 -> 추가 후 전환
+    if (err && (err.code === 4902 || err?.data?.originalError?.code === 4902)) {
+      await window.ethereum.request({ method: "wallet_addEthereumChain", params: [params] });
+      await window.ethereum.request({ method: "wallet_switchEthereumChain", params: [{ chainId: params.chainId }] });
+      updateAllStatus(`${params.chainName} 전환 성공 ✅`);
+      await displayNetworkInfo();
+      initContracts();
+      await checkBalances();
+    } else if (err && err.code === 4001) {
+      updateAllStatus("사용자가 네트워크 전환을 취소했습니다 ❌");
+    } else {
+      console.error("switchToChain 실패", err);
+      updateAllStatus("네트워크 전환 실패 ❌");
+    }
+  }
+}
+
+// [ADD] 버튼에서 호출할 구체 함수
+function switchToTMZ() { return switchToChain(CHAIN_PARAMS); }       // TMZ (0x1e1b)
+function switchToJKK() { return switchToChain(CHAIN_PARAMS_JKK); }    // JKK (0x1e1a)
+
+function bindAllUi() {
+  SUFFIXES.forEach(suf => {
+    const cb = el("connectButton", suf);
+    if (cb) cb.onclick = connect;
+
+    // ... (기존 approve/swap/balance 바인딩)
+
+    // [ADD] 네트워크 전환 버튼 바인딩
+    const goTMZ = el("switchToTMZButton", suf);
+    if (goTMZ) goTMZ.onclick = () => switchToTMZ();
+
+    const goJKK = el("switchToJKKButton", suf);
+    if (goJKK) goJKK.onclick = () => switchToJKK();
+  });
+}
