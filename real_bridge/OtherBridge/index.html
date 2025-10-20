@@ -1,519 +1,536 @@
 <!DOCTYPE html>
 <html lang="ko">
 <head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Cross-Chain Token Bridge: JKK ↔ TMZ</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
-    <!-- Chosen Palette: Calm Harmony -->
-    <!-- CONFIRMATION: NO SVG graphics used. NO Mermaid JS used. -->
-    <style>
-        body {
-            font-family: 'Pretendard', sans-serif;
-            background-color: #F8F7F4; /* Warm Neutral */
-        }
-        @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
-        .btn { @apply w-full px-4 py-3 font-semibold text-white rounded-lg shadow-md transition-all duration-200 focus:outline-none focus:ring-2 focus:ring-opacity-75 disabled:opacity-50 disabled:cursor-not-allowed; }
-        .btn-primary {
-            background-color: #4A6D7C; /* Muted Teal */
-            color: white;
-        }
-        .btn-primary:hover {
-            background-color: #3A5763;
-        }
-        .btn-primary:disabled {
-            background-color: #9FB1B9;
-            cursor: not-allowed;
-        }
-        .btn-admin { @apply bg-gray-600 hover:bg-gray-700 focus:ring-gray-500; }
-        .btn-danger { @apply bg-red-700 hover:bg-red-800 focus:ring-red-500; }
-        .card {
-            background-color: white;
-            border-radius: 0.75rem;
-            box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1), 0 2px 4px -2px rgb(0 0 0 / 0.1);
-            border: 1px solid #EAE8E2;
-        }
-        .diagram-arrow {
-            position: relative;
-            padding: 1rem 0;
-        }
-        .diagram-arrow::after {
-            content: '→';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            transform: translate(-50%, -50%);
-            font-size: 1.5rem;
-            color: #9ca3af;
-        }
-    </style>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Cross-Chain Token Bridge: JKK ↔ TMZ</title>
+
+  <!-- Tailwind + Ethers -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+
+  <!-- CONFIRMATION: NO SVG, NO Mermaid -->
+  <style>
+    @import url('https://cdn.jsdelivr.net/gh/orioncactus/pretendard/dist/web/static/pretendard.css');
+    body { font-family: 'Pretendard', sans-serif; background:#F8F7F4; }
+
+    /* 버튼 기본 스타일 (CDN 모드에서도 동작하도록 일반 CSS) */
+    .btn { width:100%; padding:.75rem 1rem; font-weight:600; color:#fff;
+           border-radius:.5rem; box-shadow:0 4px 6px -1px rgb(0 0 0 / .1), 0 2px 4px -2px rgb(0 0 0 /.1);
+           transition:transform .2s ease; }
+    .btn:disabled { opacity:.5; cursor:not-allowed; }
+    .btn:hover { transform:scale(1.02); }
+
+    .btn-primary { background:#4A6D7C; }
+    .btn-primary:hover { background:#3A5763; }
+
+    .btn-admin { background:#4b5563; color:#fff; }
+    .btn-admin:hover { background:#374151; }
+
+    .btn-danger { background:#b91c1c; color:#fff; }
+    .btn-danger:hover { background:#991b1b; }
+
+    .card { background:#fff; border-radius:.75rem;
+            box-shadow:0 4px 6px -1px rgb(0 0 0 /.1), 0 2px 4px -2px rgb(0 0 0 /.1);
+            border:1px solid #EAE8E2; }
+
+    .diagram-arrow { position:relative; padding:1rem 0; }
+    .diagram-arrow::after {
+      content:'→'; position:absolute; top:50%; left:50%; transform:translate(-50%,-50%);
+      font-size:1.5rem; color:#9ca3af;
+    }
+  </style>
 </head>
 <body class="antialiased">
-    <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-6xl">
-        <header class="text-center mb-8">
-            <h1 class="text-4xl font-bold text-[#2C3E50]">Cross-Chain Token Bridge</h1>
-            <p class="text-lg text-gray-500 mt-2">JKK-Net과 JKK-TMZ 네트워크 간 토큰을 안전하게 전송하세요.</p>
-        </header>
+  <div class="container mx-auto p-4 sm:p-6 md:p-8 max-w-6xl">
+    <header class="text-center mb-8">
+      <h1 class="text-4xl font-bold text-[#2C3E50]">Cross-Chain Token Bridge</h1>
+      <p class="text-lg text-gray-500 mt-2">JKK-Net과 JKK-TMZ 네트워크 간 토큰을 안전하게 전송하세요.</p>
+    </header>
 
-        <main class="grid grid-cols-1 lg:grid-cols-5 gap-8">
-            <div class="lg:col-span-3 space-y-6">
-                <!-- Wallet Connection Card -->
-                <div id="wallet-card" class="card p-6">
-                    <div id="wallet-connect-view">
-                        <h2 class="text-xl font-semibold text-[#2C3E50] mb-2">시작하기</h2>
-                        <p class="text-gray-600 mb-4">브릿지를 사용하려면 먼저 지갑을 연결해주세요.</p>
-                        <button id="connectButton" class="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold transition-transform transform hover:scale-105 btn-primary">
-                            지갑 연결
-                        </button>
-                    </div>
-                    <div id="wallet-info-view" class="hidden space-y-2">
-                         <h2 class="text-xl font-semibold text-[#2C3E50] mb-3">연결 정보</h2>
-                         <div>
-                            <span class="font-semibold text-gray-700">상태:</span>
-                            <span class="font-mono text-green-600">연결됨</span>
-                        </div>
-                        <div>
-                            <span class="font-semibold text-gray-700">계정:</span>
-                            <span id="account" class="font-mono text-gray-600 break-all"></span>
-                        </div>
-                        <div>
-                            <span class="font-semibold text-gray-700">네트워크:</span>
-                            <span id="network" class="font-mono text-gray-600 font-semibold"></span>
-                        </div>
-                        <div class="mt-4">
-                            <span class="font-semibold text-gray-700">네트워크 전환</span>
-                            <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
-                                <button id="switchToTMZButton" class="w-full px-4 py-2 rounded-lg font-semibold transition-transform transform hover:scale-105 btn-primary">
-                                JKK‑TMZ로 전환
-                                </button>
-                                <button id="switchToJKKButton" class="w-full px-4 py-2 rounded-lg font-semibold transition-transform transform hover:scale-105 btn-primary">
-                                JKK‑Net으로 전환
-                                </button>
-                            </div>
-                            <p class="text-xs text-gray-500 mt-1">* MetaMask에 해당 네트워크가 미리 추가되어 있어야 합니다.</p>
-                        </div>
-                    </div>
-                </div>
+    <main class="grid grid-cols-1 lg:grid-cols-5 gap-8">
+      <div class="lg:col-span-3 space-y-6">
+        <!-- Wallet Connection Card -->
+        <div id="wallet-card" class="card p-6">
+          <div id="wallet-connect-view">
+            <h2 class="text-xl font-semibold text-[#2C3E50] mb-2">시작하기</h2>
+            <p class="text-gray-600 mb-4">브릿지를 사용하려면 먼저 지갑을 연결해주세요.</p>
+            <button id="connectButton" class="w-full sm:w-auto px-6 py-3 rounded-lg font-semibold transition-transform transform hover:scale-105 btn btn-primary">
+              지갑 연결
+            </button>
+          </div>
 
-                <!-- Bridge Panel Card -->
-                <div id="bridge-panel" class="card p-6 hidden">
-                    <!-- JKK to TMZ -->
-                    <div id="jkk-bridge-ui" class="hidden">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-2xl font-semibold text-[#2C3E50]">토큰 보내기</h2>
-                            <div class="text-sm font-bold text-gray-500">JKK-Net → JKK-TMZ</div>
-                        </div>
-                        <p class="text-gray-600 mb-4">JKK2 토큰을 TMZ 네트워크의 TMZ2 토큰으로 교환합니다.</p>
-                        <div class="bg-[#F8F7F4] p-4 rounded-lg mb-4">
-                             <span class="text-gray-600">내 JKK2 잔액:</span>
-                             <span id="jkk-balance" class="font-mono font-bold text-lg text-[#2C3E50]">0.0</span>
-                        </div>
-                        <div class="space-y-4">
-                            <input id="jkk-amount" type="number" placeholder="보낼 수량" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]">
-                            <button id="bridgeToTmzButton" class="w-full py-3 rounded-lg font-semibold transition-transform transform hover:scale-105 btn-primary">
-                                TMZ 네트워크로 전송
-                            </button>
-                        </div>
-                    </div>
-                    <!-- TMZ to JKK -->
-                    <div id="tmz-bridge-ui" class="hidden">
-                        <div class="flex items-center justify-between mb-4">
-                            <h2 class="text-2xl font-semibold text-[#2C3E50]">토큰 되돌려 받기</h2>
-                            <div class="text-sm font-bold text-gray-500">JKK-TMZ → JKK-Net</div>
-                        </div>
-                        <p class="text-gray-600 mb-4">TMZ2 토큰을 JKK 네트워크의 JKK2 토큰으로 교환합니다.</p>
-                         <div class="bg-[#F8F7F4] p-4 rounded-lg mb-4">
-                             <span class="text-gray-600">내 TMZ2 잔액:</span>
-                             <span id="tmz-balance" class="font-mono font-bold text-lg text-[#2C3E50]">0.0</span>
-                        </div>
-                        <div class="space-y-4">
-                            <input id="tmz-amount" type="number" placeholder="되돌려 보낼 수량" class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]">
-                            <button id="bridgeToJkkButton" class="w-full py-3 rounded-lg font-semibold transition-transform transform hover:scale-105 btn-primary">
-                                JKK 네트워크로 전송
-                            </button>
-                        </div>
-                    </div>
-                     <!-- Unsupported Network -->
-                    <div id="unsupported-network-ui" class="hidden text-center">
-                        <h2 class="text-xl font-semibold text-amber-700 mb-2">네트워크 전환 필요</h2>
-                        <p class="text-gray-600">이 브릿지를 사용하려면 지갑의 네트워크를 JKK-Net 또는 JKK-TMZ로 변경해주세요.</p>
-                    </div>
-                </div>
-                
-                <!-- Admin Panel Card -->
-                <details id="admin-panel-details" class="card p-6 hidden">
-                    <summary class="cursor-pointer text-lg font-semibold text-gray-700 hover:text-black">
-                        관리자 패널 (Owner 전용)
-                    </summary>
-                    <div class="mt-4 pt-4 border-t border-gray-200 space-y-4">
-                        <div id="jkk-admin-ui" class="hidden space-y-3">
-                             <h3 class="text-md font-semibold text-gray-800">JKK-Net 설정</h3>
-                             <input type="text" id="jkk-relayer-input" class="w-full p-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]" placeholder="설정할 Relayer 지갑 주소">
-                             <button id="setRelayerJKKButton" class="w-full py-2 rounded-lg font-semibold btn-admin">JKK-Bridge에 Relayer 설정</button>
-                        </div>
-                        <div id="tmz-admin-ui" class="hidden space-y-3">
-                             <h3 class="text-md font-semibold text-gray-800">JKK-TMZ 설정</h3>
-                             <input type="text" id="tmz-relayer-input" class="w-full p-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]" placeholder="설정할 Relayer 지갑 주소">
-                             <button id="setRelayerTMZButton" class="w-full py-2 rounded-lg font-semibold btn-admin">TMZ-Bridge에 Relayer 설정</button>
-                               <button id="grantMinterRoleButton" class="w-full py-2 rounded-lg font-semibold btn-danger">TMZ-Bridge에 Minter 권한 부여</button>
-                        </div>
-                    </div>
-                </details>
+          <div id="wallet-info-view" class="hidden space-y-2">
+            <h2 class="text-xl font-semibold text-[#2C3E50] mb-3">연결 정보</h2>
+            <div><span class="font-semibold text-gray-700">상태:</span> <span class="font-mono text-green-600">연결됨</span></div>
+            <div><span class="font-semibold text-gray-700">계정:</span> <span id="account" class="font-mono text-gray-600 break-all"></span></div>
+            <div><span class="font-semibold text-gray-700">네트워크:</span> <span id="network" class="font-mono text-gray-600 font-semibold"></span></div>
 
+            <div class="mt-4">
+              <span class="font-semibold text-gray-700">네트워크 전환</span>
+              <div class="mt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <button id="switchToTMZButton" class="btn btn-primary">JKK‑TMZ로 전환</button>
+                <button id="switchToJKKButton" class="btn btn-primary">JKK‑Net으로 전환</button>
+              </div>
+              <p class="text-xs text-gray-500 mt-1">* MetaMask에 해당 네트워크가 미리 추가되어 있어야 합니다.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Bridge Panel Card -->
+        <div id="bridge-panel" class="card p-6 hidden">
+          <!-- JKK → TMZ -->
+          <div id="jkk-bridge-ui" class="hidden">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-2xl font-semibold text-[#2C3E50]">토큰 보내기</h2>
+              <div class="text-sm font-bold text-gray-500">JKK-Net → JKK-TMZ</div>
+            </div>
+            <p class="text-gray-600 mb-4">JKK2 토큰을 TMZ 네트워크의 TMZ2 토큰으로 교환합니다.</p>
+            <div class="bg-[#F8F7F4] p-4 rounded-lg mb-4">
+              <span class="text-gray-600">내 JKK2 잔액:</span>
+              <span id="jkk-balance" class="font-mono font-bold text-lg text-[#2C3E50]">0.0</span>
+            </div>
+            <div class="space-y-4">
+              <input id="jkk-amount" type="number" placeholder="보낼 수량"
+                     class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]">
+              <button id="bridgeToTmzButton" class="btn btn-primary">TMZ 네트워크로 전송</button>
+            </div>
+          </div>
+
+          <!-- TMZ → JKK -->
+          <div id="tmz-bridge-ui" class="hidden">
+            <div class="flex items-center justify-between mb-4">
+              <h2 class="text-2xl font-semibold text-[#2C3E50]">토큰 되돌려 받기</h2>
+              <div class="text-sm font-bold text-gray-500">JKK-TMZ → JKK-Net</div>
+            </div>
+            <p class="text-gray-600 mb-4">TMZ2 토큰을 JKK 네트워크의 JKK2 토큰으로 교환합니다.</p>
+            <div class="bg-[#F8F7F4] p-4 rounded-lg mb-4">
+              <span class="text-gray-600">내 TMZ2 잔액:</span>
+              <span id="tmz-balance" class="font-mono font-bold text-lg text-[#2C3E50]">0.0</span>
+            </div>
+            <div class="space-y-4">
+              <input id="tmz-amount" type="number" placeholder="되돌려 보낼 수량"
+                     class="w-full p-3 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]">
+              <button id="bridgeToJkkButton" class="btn btn-primary">JKK 네트워크로 전송</button>
+            </div>
+          </div>
+
+          <!-- Unsupported Network -->
+          <div id="unsupported-network-ui" class="hidden text-center">
+            <h2 class="text-xl font-semibold text-amber-700 mb-2">네트워크 전환 필요</h2>
+            <p class="text-gray-600">이 브릿지를 사용하려면 지갑의 네트워크를 JKK-Net 또는 JKK-TMZ로 변경해주세요.</p>
+          </div>
+        </div>
+
+        <!-- Admin Panel -->
+        <details id="admin-panel-details" class="card p-6 hidden">
+          <summary class="cursor-pointer text-lg font-semibold text-gray-700 hover:text-black">
+            관리자 패널 (Owner 전용)
+          </summary>
+          <div class="mt-4 pt-4 border-t border-gray-200 space-y-4">
+            <!-- JKK-Net 설정 -->
+            <div id="jkk-admin-ui" class="hidden space-y-3">
+              <h3 class="text-md font-semibold text-gray-800">JKK-Net 설정</h3>
+              <input type="text" id="jkk-relayer-input"
+                     class="w-full p-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]"
+                     placeholder="설정할 Relayer 지갑 주소">
+              <button id="setRelayerJKKButton" class="btn btn-admin">JKK-Bridge에 Relayer 설정</button>
             </div>
 
-            <div class="lg:col-span-2 space-y-6">
-                <!-- How it Works Card -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold text-[#2C3E50] mb-4">작동 방식</h2>
-                    <div class="space-y-2 text-sm text-gray-600">
-                        <div class="flex flex-col items-center text-center p-3 bg-[#F8F7F4] rounded-lg">
-                            <span class="font-bold text-green-700">1. JKK-Net: 토큰 잠금 (Lock)</span>
-                            <p>사용자가 JKK2 토큰을 브릿지 컨트랙트에 전송하면 토큰이 잠깁니다.</p>
-                        </div>
-                        <div class="diagram-arrow text-center text-2xl text-gray-400">↓</div>
-                        <div class="flex flex-col items-center text-center p-3 bg-gray-100 rounded-lg">
-                            <span class="font-bold text-gray-700">2. Relayer: 이벤트 감지</span>
-                            <p>오프체인 Relayer가 'TokensLocked' 이벤트를 감지하고 반대편 네트워크에 정보를 전달합니다.</p>
-                        </div>
-                         <div class="diagram-arrow text-center text-2xl text-gray-400">↓</div>
-                        <div class="flex flex-col items-center text-center p-3 bg-[#F8F7F4] rounded-lg">
-                            <span class="font-bold text-sky-700">3. JKK-TMZ: 토큰 발행 (Mint)</span>
-                            <p>Relayer의 요청에 따라 TMZ 브릿지가 사용자에게 새로운 TMZ2 토큰을 발행합니다.</p>
-                        </div>
-                        <p class="text-xs text-center text-gray-500 pt-3">*JKK-TMZ에서 JKK-Net으로 되돌아오는 과정은 이의 역순(Burn & Release)으로 진행됩니다.</p>
-                    </div>
-                </div>
-                <!-- Status Log Card -->
-                <div class="card p-6">
-                    <h2 class="text-xl font-semibold text-[#2C3E50] mb-4">상태 로그</h2>
-                    <div id="status-log" class="text-sm h-48 overflow-y-auto bg-[#F8F7F4] p-3 rounded-lg space-y-2">
-                        <p class="text-gray-500">작업을 시작하면 여기에 상태가 표시됩니다.</p>
-                    </div>
-                </div>
+            <!-- JKK-TMZ 설정 -->
+            <div id="tmz-admin-ui" class="hidden space-y-3">
+              <h3 class="text-md font-semibold text-gray-800">JKK-TMZ 설정</h3>
+              <input type="text" id="tmz-relayer-input"
+                     class="w-full p-2 bg-white border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-[#4A6D7C]"
+                     placeholder="설정할 Relayer 지갑 주소">
+              <button id="setRelayerTMZButton" class="btn btn-admin">TMZ-Bridge에 Relayer 설정</button>
+
+              <!-- Minter 권한 상태/부여 -->
+              <div class="flex items-center justify-between">
+                <span id="minter-role-status" class="text-sm text-gray-600">MINTER_ROLE 상태: 확인 전</span>
+                <button id="refreshMinterStatus" class="px-3 py-1 rounded-lg text-sm btn-admin">상태 새로고침</button>
+              </div>
+              <button id="grantMinterRoleButton" class="btn btn-danger">TMZ-Bridge에 Minter 권한 부여</button>
             </div>
-        </main>
-    </div>
+          </div>
+        </details>
+      </div>
 
-<script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const BRIDGE_CONSTANTS = {
-            RELAYER_ADDRESS: "0x38f62bd1F71e5F0bF6B7Affd740447E46F0c99C5", // 기본값, 입력칸으로 대체됨
-            JKK_TOKEN_ADDRESS: "0x3dfc5a626a046ce0f01b130fa92dd4ef4a3f714b",
-            TMZ_TOKEN_ADDRESS: "0x6d85c37c22284b7974e3a92fbd7fe95eaea65c59",
-            JKK_BRIDGE_ADDRESS: "0xa0ec08442e0783debb54e97b65efc884e67b0fe3",
-            TMZ_BRIDGE_ADDRESS: "0xa6ed5c561fa7e4bab95fb4512cf69432037add6f",
-            MINTER_ROLE_HASH: "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6",
-            NETWORKS: {
-                JKK: { chainId: '0x1E1A', name: 'JKK-Net' },
-                TMZ: { chainId: '0x1E1B', name: 'JKK-TMZ' }
-            },
-            TOKEN_ABI: [
-                "function approve(address spender, uint256 amount) external returns (bool)",
-                "function balanceOf(address account) external view returns (uint256)",
-                "function grantRole(bytes32 role, address account) external",
-                "function hasRole(bytes32 role, address account) external view returns (bool)"
-            ],
-            BRIDGE_ABI: {
-                JKK: ["function lock(uint256 amount, uint256 destinationChainId) external", "function setRelayer(address _relayer) external"],
-                TMZ: ["function burn(uint256 amount, uint256 destinationChainId) external", "function setRelayer(address _relayer) external"]
-            }
-        };
+      <div class="lg:col-span-2 space-y-6">
+        <!-- How it Works -->
+        <div class="card p-6">
+          <h2 class="text-xl font-semibold text-[#2C3E50] mb-4">작동 방식</h2>
+          <div class="space-y-2 text-sm text-gray-600">
+            <div class="flex flex-col items-center text-center p-3 bg-[#F8F7F4] rounded-lg">
+              <span class="font-bold text-green-700">1. JKK-Net: 토큰 잠금 (Lock)</span>
+              <p>사용자가 JKK2 토큰을 브릿지 컨트랙트에 전송하면 토큰이 잠깁니다.</p>
+            </div>
+            <div class="diagram-arrow text-center text-2xl text-gray-400">↓</div>
+            <div class="flex flex-col items-center text-center p-3 bg-gray-100 rounded-lg">
+              <span class="font-bold text-gray-700">2. Relayer: 이벤트 감지</span>
+              <p>오프체인 Relayer가 'TokensLocked' 이벤트를 감지하고 반대편 네트워크에 정보를 전달합니다.</p>
+            </div>
+            <div class="diagram-arrow text-center text-2xl text-gray-400">↓</div>
+            <div class="flex flex-col items-center text-center p-3 bg-[#F8F7F4] rounded-lg">
+              <span class="font-bold text-sky-700">3. JKK-TMZ: 토큰 발행 (Mint)</span>
+              <p>Relayer의 요청에 따라 TMZ 브릿지가 사용자에게 새로운 TMZ2 토큰을 발행합니다.</p>
+            </div>
+            <p class="text-xs text-center text-gray-500 pt-3">*JKK-TMZ에서 JKK-Net으로 되돌아오는 과정은 이의 역순(Burn & Release)으로 진행됩니다.</p>
+          </div>
+        </div>
 
-        let provider, signer, currentAccount;
+        <!-- Status Log -->
+        <div class="card p-6">
+          <h2 class="text-xl font-semibold text-[#2C3E50] mb-4">상태 로그</h2>
+          <div id="status-log" class="text-sm h-48 overflow-y-auto bg-[#F8F7F4] p-3 rounded-lg space-y-2">
+            <p class="text-gray-500">작업을 시작하면 여기에 상태가 표시됩니다.</p>
+          </div>
+        </div>
+      </div>
+    </main>
+  </div>
 
-        // --- DOM Elements ---
-        const connectButton = document.getElementById('connectButton');
-        const walletConnectView = document.getElementById('wallet-connect-view');
-        const walletInfoView = document.getElementById('wallet-info-view');
-        const accountSpan = document.getElementById('account');
-        const networkSpan = document.getElementById('network');
-        const bridgePanel = document.getElementById('bridge-panel');
-        const jkkBridgeUI = document.getElementById('jkk-bridge-ui');
-        const tmzBridgeUI = document.getElementById('tmz-bridge-ui');
-        const unsupportedNetworkUI = document.getElementById('unsupported-network-ui');
-        const statusLog = document.getElementById('status-log');
-        const adminPanel = document.getElementById('admin-panel-details');
-        const jkkAdminUI = document.getElementById('jkk-admin-ui');
-        const tmzAdminUI = document.getElementById('tmz-admin-ui');
-        
-        // --- Wallet Connection & UI State ---
-        const connectWallet = async () => {
-            if (typeof window.ethereum === 'undefined') {
-                return addStatusLog('메타마스크가 설치되어 있지 않습니다!', true);
-            }
-            try {
-                const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
-                provider = new ethers.providers.Web3Provider(window.ethereum);
-                handleAccountsChanged(accounts);
-                setupEventListeners();
-            } catch (error) {
-                addStatusLog('지갑 연결이 거부되었습니다.', true);
-            }
-        };
+  <script>
+  document.addEventListener('DOMContentLoaded', () => {
+    const BRIDGE_CONSTANTS = {
+      RELAYER_ADDRESS: "0x38f62bd1F71e5F0bF6B7Affd740447E46F0c99C5", // (프론트에서는 미사용)
+      JKK_TOKEN_ADDRESS: "0x3dfc5a626a046ce0f01b130fa92dd4ef4a3f714b",
+      TMZ_TOKEN_ADDRESS: "0x6d85c37c22284b7974e3a92fbd7fe95eaea65c59",
+      JKK_BRIDGE_ADDRESS: "0xa0ec08442e0783debb54e97b65efc884e67b0fe3",
+      TMZ_BRIDGE_ADDRESS: "0xa6ed5c561fa7e4bab95fb4512cf69432037add6f",
+      MINTER_ROLE_HASH: "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6",
+      NETWORKS: {
+        JKK: { chainId: '0x1E1A', name: 'JKK-Net' },  // 7706
+        TMZ: { chainId: '0x1E1B', name: 'JKK-TMZ' }   // 7707
+      },
+      TOKEN_ABI: [
+        "function approve(address spender, uint256 amount) external returns (bool)",
+        "function balanceOf(address account) external view returns (uint256)",
+        "function grantRole(bytes32 role, address account) external",
+        "function hasRole(bytes32 role, address account) external view returns (bool)"
+      ],
+      BRIDGE_ABI: {
+        JKK: [
+          "function lock(uint256 amount, uint256 destinationChainId) external",
+          "function setRelayer(address _relayer) external"
+        ],
+        TMZ: [
+          "function burn(uint256 amount, uint256 destinationChainId) external",
+          "function setRelayer(address _relayer) external"
+        ]
+      }
+    };
 
-        const updateUIState = async () => {
-            if (!currentAccount || !provider) return;
+    let provider, signer, currentAccount;
 
-            walletConnectView.classList.add('hidden');
-            walletInfoView.classList.remove('hidden');
-            bridgePanel.classList.remove('hidden');
+    // --- DOM Elements ---
+    const connectButton = document.getElementById('connectButton');
+    const walletConnectView = document.getElementById('wallet-connect-view');
+    const walletInfoView = document.getElementById('wallet-info-view');
+    const accountSpan = document.getElementById('account');
+    const networkSpan = document.getElementById('network');
+    const bridgePanel = document.getElementById('bridge-panel');
+    const jkkBridgeUI = document.getElementById('jkk-bridge-ui');
+    const tmzBridgeUI = document.getElementById('tmz-bridge-ui');
+    const unsupportedNetworkUI = document.getElementById('unsupported-network-ui');
+    const statusLog = document.getElementById('status-log');
+    const adminPanel = document.getElementById('admin-panel-details');
+    const jkkAdminUI = document.getElementById('jkk-admin-ui');
+    const tmzAdminUI = document.getElementById('tmz-admin-ui');
 
-            const network = await provider.getNetwork();
-            const currentChainId = `0x${network.chainId.toString(16)}`;
+    // --- Wallet Connection ---
+    const connectWallet = async () => {
+      if (typeof window.ethereum === 'undefined') {
+        return addStatusLog('메타마스크가 설치되어 있지 않습니다!', true);
+      }
+      try {
+        const accounts = await window.ethereum.request({ method: 'eth_requestAccounts' });
+        provider = new ethers.providers.Web3Provider(window.ethereum);
+        handleAccountsChanged(accounts);
+        setupEventListeners();
+      } catch {
+        addStatusLog('지갑 연결이 거부되었습니다.', true);
+      }
+    };
 
-            accountSpan.textContent = `${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
+    const updateUIState = async () => {
+      if (!currentAccount || !provider) return;
 
-            // [FIX] Reset all conditional UI elements first
-            jkkBridgeUI.classList.add('hidden');
-            tmzBridgeUI.classList.add('hidden');
-            unsupportedNetworkUI.classList.add('hidden');
-            adminPanel.classList.remove('hidden');
-            jkkAdminUI.classList.add('hidden');
-            tmzAdminUI.classList.add('hidden');
+      walletConnectView.classList.add('hidden');
+      walletInfoView.classList.remove('hidden');
+      bridgePanel.classList.remove('hidden');
 
-            let networkName;
+      const network = await provider.getNetwork();
+      const currentChainId = `0x${network.chainId.toString(16)}`;
 
-            // [FIX] Use case-insensitive comparison and more explicit logic
-            if (currentChainId.toLowerCase() === BRIDGE_CONSTANTS.NETWORKS.JKK.chainId.toLowerCase()) {
-                networkName = BRIDGE_CONSTANTS.NETWORKS.JKK.name;
-                jkkBridgeUI.classList.remove('hidden');
-                jkkAdminUI.classList.remove('hidden');
-                await updateBalances('JKK');
-            } else if (currentChainId.toLowerCase() === BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId.toLowerCase()) {
-                networkName = BRIDGE_CONSTANTS.NETWORKS.TMZ.name;
-                tmzBridgeUI.classList.remove('hidden');
-                tmzAdminUI.classList.remove('hidden');
-                await updateBalances('TMZ');
-            } else {
-                networkName = `Unsupported (ID: ${network.chainId})`;
-                unsupportedNetworkUI.classList.remove('hidden');
-                adminPanel.classList.add('hidden'); // Hide admin if network is not supported
-            }
-            networkSpan.textContent = `${networkName} (ID: ${network.chainId})`;
-        };
+      accountSpan.textContent = `${currentAccount.substring(0, 6)}...${currentAccount.substring(38)}`;
 
-        const updateBalances = async (networkType) => {
-            if (!signer) return;
-            if (networkType === 'JKK') {
-                const jkkToken = new ethers.Contract(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
-                const balance = await jkkToken.balanceOf(currentAccount);
-                document.getElementById('jkk-balance').textContent = ethers.utils.formatEther(balance);
-            } else if (networkType === 'TMZ') {
-                const tmzToken = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
-                const balance = await tmzToken.balanceOf(currentAccount);
-                document.getElementById('tmz-balance').textContent = ethers.utils.formatEther(balance);
-            }
-        };
+      // Reset
+      jkkBridgeUI.classList.add('hidden');
+      tmzBridgeUI.classList.add('hidden');
+      unsupportedNetworkUI.classList.add('hidden');
+      adminPanel.classList.remove('hidden');
+      jkkAdminUI.classList.add('hidden');
+      tmzAdminUI.classList.add('hidden');
 
-        // --- User Bridge Functions ---
-        const bridgeToTMZ = async () => {
-             const amountStr = document.getElementById('jkk-amount').value;
-            if (!amountStr || parseFloat(amountStr) <= 0) return addStatusLog('유효한 수량을 입력하세요.', true);
-            
-            document.getElementById('bridgeToTmzButton').disabled = true;
-            const amount = ethers.utils.parseEther(amountStr);
-            const jkkToken = new ethers.Contract(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
-            const jkkBridge = new ethers.Contract(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.JKK, signer);
+      let networkName;
 
-            try {
-                addStatusLog('1/2: JKK2 토큰 사용을 승인합니다... (메타마스크 확인)');
-                let tx = await jkkToken.approve(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, amount);
-                await tx.wait();
-                addStatusLog('승인 완료!');
+      if (currentChainId.toLowerCase() === BRIDGE_CONSTANTS.NETWORKS.JKK.chainId.toLowerCase()) {
+        networkName = BRIDGE_CONSTANTS.NETWORKS.JKK.name;
+        jkkBridgeUI.classList.remove('hidden');
+        jkkAdminUI.classList.remove('hidden');
+        await updateBalances('JKK');
+      } else if (currentChainId.toLowerCase() === BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId.toLowerCase()) {
+        networkName = BRIDGE_CONSTANTS.NETWORKS.TMZ.name;
+        tmzBridgeUI.classList.remove('hidden');
+        tmzAdminUI.classList.remove('hidden');
+        await updateBalances('TMZ');
+        // TMZ 연결 시 Minter 상태 자동 확인
+        await refreshMinterStatus();
+      } else {
+        networkName = `Unsupported (ID: ${network.chainId})`;
+        unsupportedNetworkUI.classList.remove('hidden');
+        adminPanel.classList.add('hidden');
+      }
+      networkSpan.textContent = `${networkName} (ID: ${network.chainId})`;
+    };
 
-                addStatusLog('2/2: 브릿지에 토큰을 잠급니다... (메타마스크 확인)');
-                tx = await jkkBridge.lock(amount, parseInt(BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId, 16));
-                await tx.wait();
-                
-                addStatusLog('✅ 브릿지 요청 성공! Relayer가 곧 처리합니다.', false, true);
-                await updateBalances('JKK');
-                document.getElementById('jkk-amount').value = '';
-            } catch (e) {
-                addStatusLog('❌ 브릿지 요청 실패: ' + (e.reason || "사용자 거부"), true);
-            } finally {
-                document.getElementById('bridgeToTmzButton').disabled = false;
-            }
-        };
+    const updateBalances = async (networkType) => {
+      if (!signer) return;
+      if (networkType === 'JKK') {
+        const jkkToken = new ethers.Contract(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+        const balance = await jkkToken.balanceOf(currentAccount);
+        document.getElementById('jkk-balance').textContent = ethers.utils.formatEther(balance);
+      } else if (networkType === 'TMZ') {
+        const tmzToken = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+        const balance = await tmzToken.balanceOf(currentAccount);
+        document.getElementById('tmz-balance').textContent = ethers.utils.formatEther(balance);
+      }
+    };
 
-        const bridgeToJKK = async () => {
-            const amountStr = document.getElementById('tmz-amount').value;
-            if (!amountStr || parseFloat(amountStr) <= 0) return addStatusLog('유효한 수량을 입력하세요.', true);
-            
-            document.getElementById('bridgeToJkkButton').disabled = true;
-            const amount = ethers.utils.parseEther(amountStr);
-            const tmzToken = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
-            const tmzBridge = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.TMZ, signer);
+    // --- User Bridge Functions ---
+    const bridgeToTMZ = async () => {
+      const amountStr = document.getElementById('jkk-amount').value;
+      if (!amountStr || parseFloat(amountStr) <= 0) return addStatusLog('유효한 수량을 입력하세요.', true);
 
-            try {
-                addStatusLog('1/2: TMZ2 토큰 소각을 승인합니다... (메타마스크 확인)');
-                let tx = await tmzToken.approve(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, amount);
-                await tx.wait();
-                addStatusLog('승인 완료!');
+      document.getElementById('bridgeToTmzButton').disabled = true;
+      const amount = ethers.utils.parseEther(amountStr);
+      const jkkToken  = new ethers.Contract(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+      const jkkBridge = new ethers.Contract(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.JKK, signer);
 
-                addStatusLog('2/2: 브릿지에 토큰 소각을 요청합니다... (메타마스크 확인)');
-                tx = await tmzBridge.burn(amount, parseInt(BRIDGE_CONSTANTS.NETWORKS.JKK.chainId, 16));
-                await tx.wait();
-                
-                addStatusLog('✅ 브릿지 요청 성공! Relayer가 곧 처리합니다.', false, true);
-                await updateBalances('TMZ');
-                document.getElementById('tmz-amount').value = '';
-            } catch (e) {
-                addStatusLog('❌ 브릿지 요청 실패: ' + (e.reason || "사용자 거부"), true);
-            } finally {
-                document.getElementById('bridgeToJkkButton').disabled = false;
-            }
-        };
+      try {
+        addStatusLog('1/2: JKK2 토큰 사용 승인... (메타마스크 확인)');
+        let tx = await jkkToken.approve(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, amount);
+        addStatusLog('승인 TX: ' + tx.hash);
+        await tx.wait();
+        addStatusLog('승인 완료!');
 
-        // --- Admin Functions ---
-        const setRelayerOnJKK = async () => {
-            const relayerAddress = document.getElementById('jkk-relayer-input').value;
-            if (!ethers.utils.isAddress(relayerAddress)) {
-                return addStatusLog('유효한 Relayer 주소를 입력하세요.', true);
-            }
-            addStatusLog(`JKK-Bridge에 Relayer 주소(${relayerAddress.substring(0,10)}...) 설정 시도...`);
-            try {
-                const jkkBridge = new ethers.Contract(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.JKK, signer);
-                const tx = await jkkBridge.setRelayer(relayerAddress);
-                await tx.wait();
-                addStatusLog('✅ JKK-Bridge Relayer 설정 완료!', false, true);
-            } catch (e) {
-                addStatusLog('❌ Relayer 설정 실패: ' + (e.reason || "Owner가 아니거나 오류 발생"), true);
-            }
-        };
-        
-        const setRelayerOnTMZ = async () => {
-            const relayerAddress = document.getElementById('tmz-relayer-input').value;
-             if (!ethers.utils.isAddress(relayerAddress)) {
-                return addStatusLog('유효한 Relayer 주소를 입력하세요.', true);
-            }
-            addStatusLog(`TMZ-Bridge에 Relayer 주소(${relayerAddress.substring(0,10)}...) 설정 시도...`);
-             try {
-                const tmzBridge = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.TMZ, signer);
-                const tx = await tmzBridge.setRelayer(relayerAddress);
-                await tx.wait();
-                addStatusLog('✅ TMZ-Bridge Relayer 설정 완료!', false, true);
-            } catch (e) {
-                addStatusLog('❌ Relayer 설정 실패: ' + (e.reason || "Owner가 아니거나 오류 발생"), true);
-            }
-        };
+        addStatusLog('2/2: 브릿지에 토큰 잠금... (메타마스크 확인)');
+        tx = await jkkBridge.lock(amount, parseInt(BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId, 16));
+        addStatusLog('Lock TX: ' + tx.hash);
+        await tx.wait();
 
-        const grantMinterRole = async () => {
-            addStatusLog('TMZ-Token에 Minter 권한 부여 시도...');
-            try {
-                const tmzToken = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
-                const tx = await tmzToken.grantRole(BRIDGE_CONSTANTS.MINTER_ROLE_HASH, BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS);
-                await tx.wait();
-                addStatusLog('✅ Minter 권한 부여 완료!', false, true);
-            } catch (e) {
-                addStatusLog('❌ 권한 부여 실패: ' + (e.reason || "Admin이 아니거나 오류 발생"), true);
-            }
-        };
+        addStatusLog('✅ 브릿지 요청 성공! Relayer가 곧 처리합니다.', false, true);
+        await updateBalances('JKK');
+        document.getElementById('jkk-amount').value = '';
+      } catch (e) {
+        addStatusLog('❌ 브릿지 요청 실패: ' + (e.reason || e.message || "사용자 거부"), true);
+      } finally {
+        document.getElementById('bridgeToTmzButton').disabled = false;
+      }
+    };
 
-        // --- Event Handlers ---
-        function handleAccountsChanged(accounts) {
-            if (accounts.length === 0) {
-                currentAccount = null;
-                walletConnectView.classList.remove('hidden');
-                walletInfoView.classList.add('hidden');
-                bridgePanel.classList.add('hidden');
-                adminPanel.classList.add('hidden');
-            } else if (accounts[0] !== currentAccount) {
-                currentAccount = accounts[0];
-                signer = provider.getSigner();
-                updateUIState();
-                addStatusLog('지갑이 성공적으로 연결되었습니다.', false);
-            }
+    const bridgeToJKK = async () => {
+      const amountStr = document.getElementById('tmz-amount').value;
+      if (!amountStr || parseFloat(amountStr) <= 0) return addStatusLog('유효한 수량을 입력하세요.', true);
+
+      document.getElementById('bridgeToJkkButton').disabled = true;
+      const amount = ethers.utils.parseEther(amountStr);
+      const tmzToken  = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+      const tmzBridge = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.TMZ, signer);
+
+      try {
+        addStatusLog('1/2: TMZ2 토큰 소각 승인... (메타마스크 확인)');
+        let tx = await tmzToken.approve(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, amount);
+        addStatusLog('승인 TX: ' + tx.hash);
+        await tx.wait();
+        addStatusLog('승인 완료!');
+
+        addStatusLog('2/2: 브릿지에 소각 요청... (메타마스크 확인)');
+        tx = await tmzBridge.burn(amount, parseInt(BRIDGE_CONSTANTS.NETWORKS.JKK.chainId, 16));
+        addStatusLog('Burn TX: ' + tx.hash);
+        await tx.wait();
+
+        addStatusLog('✅ 브릿지 요청 성공! Relayer가 곧 처리합니다.', false, true);
+        await updateBalances('TMZ');
+        document.getElementById('tmz-amount').value = '';
+      } catch (e) {
+        addStatusLog('❌ 브릿지 요청 실패: ' + (e.reason || e.message || "사용자 거부"), true);
+      } finally {
+        document.getElementById('bridgeToJkkButton').disabled = false;
+      }
+    };
+
+    // --- Admin Functions (with chain guards) ---
+    const setRelayerOnJKK = async () => {
+      const relayerAddress = document.getElementById('jkk-relayer-input').value;
+      if (!ethers.utils.isAddress(relayerAddress)) {
+        return addStatusLog('유효한 Relayer 주소를 입력하세요.', true);
+      }
+      const net = await provider.getNetwork();
+      const cur = `0x${net.chainId.toString(16)}`.toLowerCase();
+      if (cur !== BRIDGE_CONSTANTS.NETWORKS.JKK.chainId.toLowerCase()) {
+        return addStatusLog('JKK-Net에서만 설정할 수 있습니다. 상단에서 JKK-Net으로 전환하세요.', true);
+      }
+      addStatusLog(`JKK-Bridge에 Relayer 주소(${relayerAddress.substring(0,10)}...) 설정 시도...`);
+      try {
+        const jkkBridge = new ethers.Contract(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.JKK, signer);
+        const tx = await jkkBridge.setRelayer(relayerAddress);
+        addStatusLog('Relayer 설정 TX: ' + tx.hash);
+        await tx.wait();
+        addStatusLog('✅ JKK-Bridge Relayer 설정 완료!', false, true);
+      } catch (e) {
+        addStatusLog('❌ Relayer 설정 실패: ' + (e.reason || e.message || "Owner가 아니거나 오류 발생"), true);
+      }
+    };
+
+    const setRelayerOnTMZ = async () => {
+      const relayerAddress = document.getElementById('tmz-relayer-input').value;
+      if (!ethers.utils.isAddress(relayerAddress)) {
+        return addStatusLog('유효한 Relayer 주소를 입력하세요.', true);
+      }
+      const net = await provider.getNetwork();
+      const cur = `0x${net.chainId.toString(16)}`.toLowerCase();
+      if (cur !== BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId.toLowerCase()) {
+        return addStatusLog('JKK‑TMZ 네트워크에서만 설정할 수 있습니다. 상단에서 JKK‑TMZ로 전환하세요.', true);
+      }
+      addStatusLog(`TMZ-Bridge에 Relayer 주소(${relayerAddress.substring(0,10)}...) 설정 시도...`);
+      try {
+        const tmzBridge = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.TMZ, signer);
+        const tx = await tmzBridge.setRelayer(relayerAddress);
+        addStatusLog('Relayer 설정 TX: ' + tx.hash);
+        await tx.wait();
+        addStatusLog('✅ TMZ-Bridge Relayer 설정 완료!', false, true);
+      } catch (e) {
+        addStatusLog('❌ Relayer 설정 실패: ' + (e.reason || e.message || "Owner가 아니거나 오류 발생"), true);
+      }
+    };
+
+    const grantMinterRole = async () => {
+      const net = await provider.getNetwork();
+      const cur = `0x${net.chainId.toString(16)}`.toLowerCase();
+      if (cur !== BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId.toLowerCase()) {
+        return addStatusLog('Minter 권한 부여는 JKK‑TMZ 네트워크에서만 가능합니다.', true);
+      }
+      addStatusLog('TMZ-Token에 Minter 권한 부여 시도...');
+      try {
+        const tmzToken = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+        const tx = await tmzToken.grantRole(BRIDGE_CONSTANTS.MINTER_ROLE_HASH, BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS);
+        addStatusLog('GrantRole TX: ' + tx.hash);
+        await tx.wait();
+        addStatusLog('✅ Minter 권한 부여 완료!', false, true);
+        await refreshMinterStatus();
+      } catch (e) {
+        addStatusLog('❌ 권한 부여 실패: ' + (e.reason || e.message || "Admin이 아니거나 오류 발생"), true);
+      }
+    };
+
+    const refreshMinterStatus = async () => {
+      try {
+        if (!signer) throw new Error("signer 없음");
+        const tmzToken = new ethers.Contract(
+          BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS,
+          BRIDGE_CONSTANTS.TOKEN_ABI,
+          signer
+        );
+        const has = await tmzToken.hasRole(
+          BRIDGE_CONSTANTS.MINTER_ROLE_HASH,
+          BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS
+        );
+        const el = document.getElementById('minter-role-status');
+        if (el) el.textContent = `MINTER_ROLE 상태: ${has ? '부여됨 ✅' : '미부여 ❌'}`;
+        addStatusLog(`TMZ-Bridge MINTER_ROLE: ${has ? '부여됨' : '미부여'}`);
+      } catch (e) {
+        addStatusLog('MINTER_ROLE 상태 조회 실패: ' + (e.reason || e.message), true);
+      }
+    };
+
+    // --- Event Handlers / Helpers ---
+    function handleAccountsChanged(accounts) {
+      if (accounts.length === 0) {
+        currentAccount = null;
+        walletConnectView.classList.remove('hidden');
+        walletInfoView.classList.add('hidden');
+        bridgePanel.classList.add('hidden');
+        adminPanel.classList.add('hidden');
+      } else if (accounts[0] !== currentAccount) {
+        currentAccount = accounts[0];
+        signer = provider.getSigner();
+        updateUIState();
+        addStatusLog('지갑이 성공적으로 연결되었습니다.');
+      }
+    }
+
+    function setupEventListeners() {
+      window.ethereum.on('accountsChanged', handleAccountsChanged);
+      window.ethereum.on('chainChanged', () => window.location.reload());
+    }
+
+    function addStatusLog(message, isError = false, isSuccess = false) {
+      const first = statusLog.querySelector('p.text-gray-500');
+      if (first) first.remove();
+
+      const p = document.createElement('p');
+      let color = 'text-gray-600';
+      if (isError) color = 'text-red-600';
+      if (isSuccess) color = 'text-green-600 font-bold';
+
+      p.className = `border-b border-gray-200 pb-1 mb-1 ${color}`;
+      p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
+      statusLog.prepend(p);
+    }
+
+    // --- Network Switch ---
+    async function switchNetwork(target /* 'JKK' | 'TMZ' */) {
+      if (typeof window.ethereum === 'undefined') {
+        return addStatusLog('메타마스크가 설치되어 있지 않습니다!', true);
+      }
+      const net = BRIDGE_CONSTANTS.NETWORKS[target];
+      try {
+        addStatusLog(`${net.name} 로 네트워크 전환 요청... (메타마스크 확인)`);
+        await window.ethereum.request({
+          method: 'wallet_switchEthereumChain',
+          params: [{ chainId: net.chainId }]
+        });
+        // 성공 시 chainChanged 리스너에서 새로고침
+      } catch (e) {
+        if (e && e.code === 4001) {
+          addStatusLog('사용자가 네트워크 전환을 취소했습니다.', true);
+        } else if (e && e.code === 4902) {
+          addStatusLog('지갑에 네트워크가 없어 전환할 수 없습니다. MetaMask에 네트워크를 먼저 추가하세요.', true);
+        } else {
+          addStatusLog('네트워크 전환 실패: ' + (e.message || '알 수 없는 오류'), true);
         }
-        function setupEventListeners() {
-            window.ethereum.on('accountsChanged', handleAccountsChanged);
-            window.ethereum.on('chainChanged', () => window.location.reload());
-        }
-        function addStatusLog(message, isError = false, isSuccess = false) {
-             const firstMessage = statusLog.querySelector('p.text-gray-500');
-            if (firstMessage) firstMessage.remove();
+      }
+    }
 
-            const p = document.createElement('p');
-            let colorClass = 'text-gray-600';
-            if(isError) colorClass = 'text-red-600';
-            if(isSuccess) colorClass = 'text-green-600 font-bold';
-            
-            p.className = `border-b border-gray-200 pb-1 mb-1 ${colorClass}`;
-            p.textContent = `[${new Date().toLocaleTimeString()}] ${message}`;
-            statusLog.prepend(p);
-        }
+    // --- Bindings ---
+    connectButton.addEventListener('click', connectWallet);
 
-        connectButton.addEventListener('click', connectWallet);
-        // User buttons
-        document.getElementById('bridgeToTmzButton').addEventListener('click', bridgeToTMZ);
-        document.getElementById('bridgeToJkkButton').addEventListener('click', bridgeToJKK);
-        // Admin buttons
-        document.getElementById('setRelayerJKKButton').addEventListener('click', setRelayerOnJKK);
-        document.getElementById('setRelayerTMZButton').addEventListener('click', setRelayerOnTMZ);
-        document.getElementById('grantMinterRoleButton').addEventListener('click', grantMinterRole);
-                // --- Network Switch (ADD) ---
-        async function switchNetwork(target /* 'JKK' | 'TMZ' */) {
-            if (typeof window.ethereum === 'undefined') {
-                return addStatusLog('메타마스크가 설치되어 있지 않습니다!', true);
-            }
-            const net = BRIDGE_CONSTANTS.NETWORKS[target];
-            try {
-                addStatusLog(`${net.name} 로 네트워크 전환 요청... (메타마스크 확인)`);
-                await window.ethereum.request({
-                    method: 'wallet_switchEthereumChain',
-                    params: [{ chainId: net.chainId }]
-                });
-                // 성공하면 위에서 이미 chainChanged 이벤트로 새로고침함
-            } catch (e) {
-                if (e && e.code === 4001) {
-                    addStatusLog('사용자가 네트워크 전환을 취소했습니다.', true);
-                } else if (e && e.code === 4902) {
-                    // 필요시 네트워크 추가(선택) — RPC 정보가 있다면 아래 주석 해제해서 사용
-                    // const ADD_PARAMS = {
-                    //   chainId: net.chainId,
-                    //   chainName: net.name,
-                    //   rpcUrls: [ target === 'TMZ' ? 'https://jkk.mst2.site' : 'http://203.252.147.199' ],
-                    //   nativeCurrency: { name: target, symbol: target, decimals: 18 },
-                    //   blockExplorerUrls: []
-                    // };
-                    // await window.ethereum.request({ method: 'wallet_addEthereumChain', params: [ADD_PARAMS] });
-                    // await window.ethereum.request({ method: 'wallet_switchEthereumChain', params: [{ chainId: net.chainId }] });
-                    addStatusLog('지갑에 네트워크가 없어 전환할 수 없습니다. MetaMask에 네트워크를 먼저 추가하세요.', true);
-                } else {
-                    addStatusLog('네트워크 전환 실패: ' + (e.message || '알 수 없는 오류'), true);
-                }
-            }
-        }
-        const refreshMinterStatus = async () => {
-            try {
-                if (!signer) throw new Error("signer 없음");
-                const tmzToken = new ethers.Contract(
-                BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS,
-                BRIDGE_CONSTANTS.TOKEN_ABI,
-                signer
-                );
-                const has = await tmzToken.hasRole(
-                BRIDGE_CONSTANTS.MINTER_ROLE_HASH,
-                BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS
-                );
-                const el = document.getElementById('minter-role-status');
-                if (el) el.textContent = `MINTER_ROLE 상태: ${has ? '부여됨 ✅' : '미부여 ❌'}`;
-                addStatusLog(`TMZ-Bridge MINTER_ROLE: ${has ? '부여됨' : '미부여'}`);
-            } catch (e) {
-                addStatusLog('MINTER_ROLE 상태 조회 실패: ' + (e.reason || e.message), true);
-            }
-        };
+    // User buttons
+    document.getElementById('bridgeToTmzButton').addEventListener('click', bridgeToTMZ);
+    document.getElementById('bridgeToJkkButton').addEventListener('click', bridgeToJKK);
 
+    // Admin buttons
+    document.getElementById('setRelayerJKKButton').addEventListener('click', setRelayerOnJKK);
+    document.getElementById('setRelayerTMZButton').addEventListener('click', setRelayerOnTMZ);
+    document.getElementById('grantMinterRoleButton').addEventListener('click', grantMinterRole);
+    document.getElementById('refreshMinterStatus').addEventListener('click', refreshMinterStatus);
 
-        // 버튼 리스너 바인딩 (ADD)
-        const switchToTMZBtn = document.getElementById('switchToTMZButton');
-        const switchToJKKBtn = document.getElementById('switchToJKKButton');
-        if (switchToTMZBtn) switchToTMZBtn.addEventListener('click', () => switchNetwork('TMZ'));
-        if (switchToJKKBtn) switchToJKKBtn.addEventListener('click', () => switchNetwork('JKK'));
-
-    });
-</script>
+    // Network switch buttons
+    document.getElementById('switchToTMZButton').addEventListener('click', () => switchNetwork('TMZ'));
+    document.getElementById('switchToJKKButton').addEventListener('click', () => switchNetwork('JKK'));
+  });
+  </script>
 </body>
 </html>
-
