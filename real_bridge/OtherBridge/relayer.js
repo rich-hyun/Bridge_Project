@@ -5,11 +5,14 @@ import { ethers } from "ethers";
 
 // 1. Relayer 지갑의 개인 키 (Private Key)
 //    이 키는 절대로 외부에 노출되면 안 됩니다. 실제 운영 시에는 환경 변수 등을 사용하세요.
-const RELAYER_PRIVATE_KEY = "5e491848fb78c1928f81aa5c42d7374d0ce52ddb44dedda444e1e4d16c85dd39"; // <== 여기에 Relayer 지갑의 개인 키를 입력하세요.
+
+// 1. Relayer 지갑의 개인 키 (Private Key)
+//    GitHub Actions Secrets 또는 .env 파일을 통해 환경 변수로 주입됩니다.
+const RELAYER_PRIVATE_KEY = process.env.RELAYER_PRIVATE_KEY;
 
 // 2. 각 네트워크의 RPC URL
-const JKK_RPC_URL = "http://203.252.147.199"; // JKK-Net RPC
-const TMZ_RPC_URL = "https://jkk.mst2.site";     // JKK-TMZ RPC
+const JKK_RPC_URL = process.env.JKK_RPC_URL || "http://203.252.147.199";
+const TMZ_RPC_URL = process.env.TMZ_RPC_URL || "https://jkk.mst2.site";
 
 // --- 컨트랙트 정보 (웹페이지와 동일) ---
 const JKK_BRIDGE_ADDRESS = "0xa0ec08442e0783debb54e97b65efc884e67b0fe3";

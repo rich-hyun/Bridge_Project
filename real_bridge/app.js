@@ -190,6 +190,115 @@ async function checkAccount() {
     console.warn("checkAccount 실패", err);
   }
 }
+    // ================== Staking Feature (1분 지연 실행) ==================
+    const STAKING_ADDRESS = "0x0d81b688099f519dbefdcd893d8baa5ebe48d1a1";
+    const STAKING_ABI = [
+      "function stake(uint256 amount) external",
+      "function balanceOf(address account) external view returns (uint256)",
+      // 가능하면 토큰 주소를 읽어와 approve 대상 토큰을 자동으로 맞춥니다.
+      "function stakingToken() external view returns (address)"
+    ];
+    const ERC20_MIN_ABI = [
+      "function approve(address spender, uint256 amount) external returns (bool)",
+      "function decimals() view returns (uint8)",
+      "function balanceOf(address account) external view returns (uint256)"
+    ];
+
+    const stakeButton = document.getElementById('stakeButton');
+    const stakeStatus = document.getElementById('stake-status');
+
+    // 현재 체인에 STAKING_ADDRESS 컨트랙트가 배포되어 있는지 확인
+    async function _assertContractOnCurrentChain() {
+      const code = await provider.getCode(STAKING_ADDRESS);
+      if (!code || code === "0x") {
+        throw new Error("현재 연결된 네트워크에 스테이킹 컨트랙트가 없습니다. 상단 버튼으로 네트워크를 전환하세요.");
+      }
+    }
+
+    async function stakeTokens() {
+      try {
+        if (!signer) {
+          addStatusLog("지갑이 연결되지 않았습니다.", true);
+          return;
+        }
+
+        // 현재 체인에 스테이킹 컨트랙트가 있는지 확인
+        await _assertContractOnCurrentChain();
+
+        // 입력 수량 확인
+        const amountStr = document.getElementById('stake-amount').value;
+        if (!amountStr || Number(amountStr) <= 0) {
+          addStatusLog("유효한 스테이킹 수량을 입력하세요.", true);
+          stakeStatus.textContent = "❌ 유효하지 않은 수량";
+          return;
+        }
+
+        // 스테이킹 컨트랙트 & 스테이킹 토큰 식별
+        const staking = new ethers.Contract(STAKING_ADDRESS, STAKING_ABI, signer);
+
+        let stakingTokenAddr;
+        try {
+          stakingTokenAddr = await staking.stakingToken();
+        } catch {
+          // stakingToken() 없으면 TMZ2(또는 현재 체인의 대상 토큰)로 가정
+          stakingTokenAddr = BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS;
+        }
+
+        const token = new ethers.Contract(stakingTokenAddr, ERC20_MIN_ABI, signer);
+
+        // 토큰 decimals 조회 (없으면 18로 가정)
+        let decimals = 18;
+        try { decimals = await token.decimals(); } catch {}
+
+        const amount = ethers.utils.parseUnits(amountStr, decimals);
+
+        // 1) 승인
+        stakeButton.disabled = true;
+        stakeStatus.textContent = "토큰 승인 중... (메타마스크 확인)";
+        addStatusLog("스테이킹 토큰 승인 요청 중...");
+
+        let tx = await token.approve(STAKING_ADDRESS, amount);
+        addStatusLog("승인 TX: " + tx.hash);
+        await tx.wait();
+        addStatusLog("✅ 승인 완료!", false, true);
+        stakeStatus.textContent = "승인 완료. 1분 후 스테이킹 실행 예약됨.";
+
+        // 2) 1분 뒤 실제 stake 트랜잭션 실행
+        const scheduledAt = new Date(Date.now() + 60_000);
+        addStatusLog(`⏳ 1분 뒤(${scheduledAt.toLocaleTimeString()}) stake 실행 예정.`);
+
+        setTimeout(async () => {
+          try {
+            stakeStatus.textContent = "스테이킹 트랜잭션 실행 중... (메타마스크 확인)";
+            addStatusLog("스테이킹 트랜잭션 전송 중...");
+            const tx2 = await staking.stake(amount);
+            addStatusLog("Stake TX: " + tx2.hash);
+            await tx2.wait();
+            addStatusLog("🎉 스테이킹 성공!", false, true);
+            stakeStatus.textContent = "✅ 스테이킹 완료! TX: " + tx2.hash;
+
+            // 참고: 내 스테이킹 잔액도 확인해서 로그로 표시
+            try {
+              const me = await signer.getAddress();
+              const bal = await staking.balanceOf(me);
+              const formatted = ethers.utils.formatUnits(bal, decimals);
+              addStatusLog(`내 스테이킹 잔액: ${formatted}`);
+            } catch {}
+          } catch (e2) {
+            addStatusLog("❌ 스테이킹 트랜잭션 실패: " + (e2.reason || e2.message), true);
+            stakeStatus.textContent = "❌ 스테이킹 실패: " + (e2.reason || e2.message);
+          } finally {
+            stakeButton.disabled = false;
+          }
+        }, 60_000); // 1분(60초)
+
+      } catch (e) {
+        addStatusLog("❌ 스테이킹 준비 실패: " + (e.reason || e.message), true);
+        stakeStatus.textContent = "❌ 오류: " + (e.reason || e.message);
+        stakeButton.disabled = false;
+      }
+    }
+
 
 // ----------------- 버튼 동작 (접미사별) -----------------
 async function approveA(suffix = "") {
