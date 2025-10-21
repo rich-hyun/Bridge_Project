@@ -1,47 +1,62 @@
-name: Deploy Frontend (Pages)
+name: Deploy to GitHub Pages
 
 on:
   push:
-    branches: [ main ]
-    paths:
-      - 'index.html'
-      - 'app.js'
-      - 'scripts/gen-config.mjs'
-      - '.github/workflows/pages.yml'
+    branches: [ main, master ]  # 기본/예전 브랜치 모두 대응
   workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20  # gen-config.mjs 실행 위해
+        uses: actions/setup-node@v4
         with:
           node-version: '20'
-      - run: node scripts/gen-config.mjs
+
+      - name: Install dotenv for generator  # gen-config.mjs가 dotenv import
+        run: npm --prefix real_bridge/OtherBridge install dotenv
+
+      - name: Generate config.js from env  # .env 대신 Actions 변수 사용
+        working-directory: real_bridge/OtherBridge
         env:
-          # 공개 가능한 값은 Repository Variables로, 비밀이면 Secrets로
-          JKK_CHAIN_ID: ${{ vars.JKK_CHAIN_ID }}
-          TMZ_CHAIN_ID: ${{ vars.TMZ_CHAIN_ID }}
-          JKK_TOKEN_ADDRESS: ${{ vars.JKK_TOKEN_ADDRESS }}
-          TMZ_TOKEN_ADDRESS: ${{ vars.TMZ_TOKEN_ADDRESS }}
-          JKK_BRIDGE_ADDRESS: ${{ vars.JKK_BRIDGE_ADDRESS }}
-          TMZ_BRIDGE_ADDRESS: ${{ vars.TMZ_BRIDGE_ADDRESS }}
-          STAKING_ADDRESS: ${{ vars.STAKING_ADDRESS }}
-          SWAP_ADDRESS: ${{ vars.SWAP_ADDRESS }}
-          MINTER_ROLE_HASH: ${{ vars.MINTER_ROLE_HASH }}
-          JKK_RPC_URL: ${{ vars.JKK_RPC_URL }}
-          TMZ_RPC_URL: ${{ vars.TMZ_RPC_URL }}
-      - uses: actions/upload-pages-artifact@v3
+          JKK_CHAIN_ID:        ${{ vars.JKK_CHAIN_ID }}
+          TMZ_CHAIN_ID:        ${{ vars.TMZ_CHAIN_ID }}
+          JKK_RPC_URL:         ${{ vars.JKK_RPC_URL }}
+          TMZ_RPC_URL:         ${{ vars.TMZ_RPC_URL }}
+          JKK_TOKEN_ADDRESS:   ${{ vars.JKK_TOKEN_ADDRESS }}
+          TMZ_TOKEN_ADDRESS:   ${{ vars.TMZ_TOKEN_ADDRESS }}
+          JKK_BRIDGE_ADDRESS:  ${{ vars.JKK_BRIDGE_ADDRESS }}
+          TMZ_BRIDGE_ADDRESS:  ${{ vars.TMZ_BRIDGE_ADDRESS }}
+          STAKING_ADDRESS:     ${{ vars.STAKING_ADDRESS }}
+          SWAP_ADDRESS:        ${{ vars.SWAP_ADDRESS }}
+          MINTER_ROLE_HASH:    ${{ vars.MINTER_ROLE_HASH }}
+        run: node scripts/gen-config.mjs
+
+      - name: Upload artifact (OtherBridge)  # 실제 index.html 있는 폴더
+        uses: actions/upload-pages-artifact@v3
         with:
-          path: ./OtherBridge 
+          path: real_bridge/OtherBridge
+
   deploy:
     needs: build
-    permissions:
-      pages: write
-      id-token: write
+    runs-on: ubuntu-latest
     environment:
       name: github-pages
-    runs-on: ubuntu-latest
+      url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/deploy-pages@v4
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4
