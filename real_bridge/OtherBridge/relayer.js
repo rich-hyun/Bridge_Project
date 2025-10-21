@@ -1,6 +1,7 @@
 // relayer.js
 
 // ethers.js 라이브러리를 가져옵니다.
+import "dotenv/config";
 import { ethers } from "ethers";
 
 // 1. Relayer 지갑의 개인 키 (Private Key)

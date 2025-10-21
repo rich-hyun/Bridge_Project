@@ -8,6 +8,7 @@
   <!-- Tailwind + Ethers -->
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/ethers/5.7.2/ethers.umd.min.js"></script>
+  <script src="./config.js"></script>
 
   <!-- NO SVG / NO Mermaid -->
   <style>
@@ -230,13 +231,26 @@
   <script>
   document.addEventListener('DOMContentLoaded', () => {
     // ===== 브릿지 상수 =====
+    const CFG = window.APP_CONFIG || {};
+
     const BRIDGE_CONSTANTS = {
-      JKK_TOKEN_ADDRESS: "0x3dfc5a626a046ce0f01b130fa92dd4ef4a3f714b",
-      TMZ_TOKEN_ADDRESS: "0x6d85c37c22284b7974e3a92fbd7fe95eaea65c59",
-      JKK_BRIDGE_ADDRESS: "0xa0ec08442e0783debb54e97b65efc884e67b0fe3",
-      TMZ_BRIDGE_ADDRESS: "0xa6ed5c561fa7e4bab95fb4512cf69432037add6f",
-      MINTER_ROLE_HASH: "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6",
-      NETWORKS: { JKK: { chainId: '0x1E1A', name: 'JKK-Net' }, TMZ: { chainId: '0x1E1B', name: 'JKK-TMZ' } },
+      JKK_TOKEN_ADDRESS: CFG.contracts?.token?.JKK2 || "0x0000000000000000000000000000000000000000",
+      TMZ_TOKEN_ADDRESS: CFG.contracts?.token?.TMZ2 || "0x0000000000000000000000000000000000000000",
+      JKK_BRIDGE_ADDRESS: CFG.contracts?.bridge?.JKK  || "0x0000000000000000000000000000000000000000",
+      TMZ_BRIDGE_ADDRESS: CFG.contracts?.bridge?.TMZ  || "0x0000000000000000000000000000000000000000",
+      MINTER_ROLE_HASH:   CFG.roles?.MINTER_ROLE_HASH ||
+                          "0x9f2df0fed2c77648de5860a4cc508cd0818c85b8b8a1ab4ceeef8d981c8956a6",
+      NETWORKS: {
+        // [NEW] rpcUrl / symbol도 추가해서 자동 추가에 활용
+        JKK: { chainId: (CFG.networks?.JKK?.chainIdHex || '0x1E1A'),
+               name: CFG.networks?.JKK?.name || 'JKK-Net',
+               rpcUrl: CFG.networks?.JKK?.rpcUrl || '',
+               symbol: 'JKK' },
+        TMZ: { chainId: (CFG.networks?.TMZ?.chainIdHex || '0x1E1B'),
+               name: CFG.networks?.TMZ?.name || 'JKK-TMZ',
+               rpcUrl: CFG.networks?.TMZ?.rpcUrl || '',
+               symbol: 'TMZ' }
+      },
       TOKEN_ABI: [
         "function approve(address spender, uint256 amount) external returns (bool)",
         "function balanceOf(address account) external view returns (uint256)",
@@ -257,7 +271,7 @@
     };
 
     // ===== 스테이킹 상수 =====
-    const STAKING_ADDRESS = "0xaa9544ba4fee170f3bd6b872dfc7003c3d6bee2c";
+    const STAKING_ADDRESS = CFG.contracts?.staking || "0x0000000000000000000000000000000000000000";
     const STAKING_ABI = [
       "function stakingToken() view returns (address)",
       "function rewardToken() view returns (address)",
@@ -307,6 +321,33 @@
       return `${dt.toLocaleString()}`;
     };
 
+    // 현재 체인에서 코드 존재 확인
+    async function verifyContractCode(address) {
+      try {
+        const code = await provider.getCode(address);
+        return code && code !== '0x';
+      } catch { return false; }
+    }
+
+    // 토큰 정보/잔액 안전 호출
+    async function safeTokenInfo(tokenAddr) {
+      const t = new ethers.Contract(tokenAddr, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+      let decimals = 18;
+      try { decimals = await t.decimals(); } catch {}
+      return { contract: t, decimals };
+    }
+    async function safeTokenBalance(tokenAddr) {
+      try {
+        const ok = await verifyContractCode(tokenAddr);
+        if (!ok) return { ok:false, reason:'현재 체인에 토큰 컨트랙트 코드가 없습니다.' };
+        const { contract, decimals } = await safeTokenInfo(tokenAddr);
+        const bal = await contract.balanceOf(currentAccount);
+        return { ok:true, value: fmt(bal, decimals) };
+      } catch (e) {
+        return { ok:false, reason: (e?.reason || e?.message || 'balanceOf 실패') };
+      }
+    }
+
     // ===== 월렛 연결 & UI 상태 =====
     async function connectWallet() {
       if (!window.ethereum) return addStatusLog('메타마스크가 설치되어 있지 않습니다!', true);
@@ -343,7 +384,7 @@
       // 스테이킹 카드 초기화/새로고침
       await initStakingContext();
       await refreshStakingInfo();
-      await startStakingCountdown(provider, staking); // [NEW] 카운트다운 시작
+      await startStakingCountdown(provider, staking); 
     }
     function handleAccountsChanged(accounts){
       if (accounts.length===0){ currentAccount=null; walletConnectView.classList.remove('hidden'); walletInfoView.classList.add('hidden'); bridgePanel.classList.add('hidden'); adminPanel.classList.add('hidden');}
@@ -367,9 +408,16 @@
     async function bridgeToTMZ(){
       const s = document.getElementById('jkk-amount').value; if (!s || parseFloat(s)<=0) return addStatusLog('유효한 수량을 입력하세요.', true);
       document.getElementById('bridgeToTmzButton').disabled=true;
-      const amt = ethers.utils.parseEther(s);
-      const t = new ethers.Contract(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+
+      // [NEW] 배포 확인
+      const okTok = await verifyContractCode(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS);
+      const okBrg = await verifyContractCode(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS);
+      if (!okTok || !okBrg){ addStatusLog('현재 체인에 JKK 토큰/브릿지 코드가 없습니다. 네트워크/주소를 확인하세요.', true); document.getElementById('bridgeToTmzButton').disabled=false; return; }
+
+      const { contract: t, decimals } = await safeTokenInfo(BRIDGE_CONSTANTS.JKK_TOKEN_ADDRESS);
       const b = new ethers.Contract(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.JKK, signer);
+      const amt = ethers.utils.parseUnits(s, decimals);
+
       try{
         addStatusLog('1/2: JKK2 승인...'); let tx=await t.approve(BRIDGE_CONSTANTS.JKK_BRIDGE_ADDRESS, amt); addStatusLog('승인 TX: '+tx.hash); await tx.wait();
         addStatusLog('2/2: Lock 전송...'); tx=await b.lock(amt, parseInt(BRIDGE_CONSTANTS.NETWORKS.TMZ.chainId,16)); addStatusLog('Lock TX: '+tx.hash); await tx.wait();
@@ -377,12 +425,20 @@
       }catch(e){ addStatusLog('❌ 실패: '+(e.reason||e.message||"사용자 거부"), true);}
       finally{ document.getElementById('bridgeToTmzButton').disabled=false; }
     }
+
     async function bridgeToJKK(){
       const s = document.getElementById('tmz-amount').value; if (!s || parseFloat(s)<=0) return addStatusLog('유효한 수량을 입력하세요.', true);
       document.getElementById('bridgeToJkkButton').disabled=true;
-      const amt = ethers.utils.parseEther(s);
-      const t = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS, BRIDGE_CONSTANTS.TOKEN_ABI, signer);
+
+      // [NEW] 배포 확인
+      const okTok = await verifyContractCode(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS);
+      const okBrg = await verifyContractCode(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS);
+      if (!okTok || !okBrg){ addStatusLog('현재 체인에 TMZ 토큰/브릿지 코드가 없습니다. 네트워크/주소를 확인하세요.', true); document.getElementById('bridgeToJkkButton').disabled=false; return; }
+
+      const { contract: t, decimals } = await safeTokenInfo(BRIDGE_CONSTANTS.TMZ_TOKEN_ADDRESS);
       const b = new ethers.Contract(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, BRIDGE_CONSTANTS.BRIDGE_ABI.TMZ, signer);
+      const amt = ethers.utils.parseUnits(s, decimals);
+
       try{
         addStatusLog('1/2: TMZ2 소각 승인...'); let tx=await t.approve(BRIDGE_CONSTANTS.TMZ_BRIDGE_ADDRESS, amt); addStatusLog('승인 TX: '+tx.hash); await tx.wait();
         addStatusLog('2/2: Burn 전송...'); tx=await b.burn(amt, parseInt(BRIDGE_CONSTANTS.NETWORKS.JKK.chainId,16)); addStatusLog('Burn TX: '+tx.hash); await tx.wait();
@@ -428,12 +484,30 @@
     // ===== 네트워크 전환 =====
     async function switchNetwork(target){
       if(!window.ethereum) return addStatusLog('메타마스크가 설치되어 있지 않습니다!', true);
-      const net=BRIDGE_CONSTANTS.NETWORKS[target];
-      try{ addStatusLog(`${net.name} 전환 요청...`);
-           await window.ethereum.request({method:'wallet_switchEthereumChain', params:[{chainId:net.chainId}]}); }
-      catch(e){ if(e && e.code===4001) addStatusLog('사용자가 전환을 취소했습니다.', true);
-                else if(e && e.code===4902) addStatusLog('지갑에 네트워크가 없습니다. 먼저 추가하세요.', true);
-                else addStatusLog('전환 실패: '+(e.message||'알 수 없는 오류'), true); }
+      const net = BRIDGE_CONSTANTS.NETWORKS[target];
+      try{
+        addStatusLog(`${net.name} 전환 요청...`);
+        await window.ethereum.request({method:'wallet_switchEthereumChain', params:[{chainId:net.chainId}]});
+      } catch(e){
+        // [NEW] 체인이 없으면 자동 추가 후 전환
+        if (e && e.code===4902) {
+          try {
+            await window.ethereum.request({
+              method:'wallet_addEthereumChain',
+              params:[{
+                chainId: net.chainId,
+                chainName: net.name,
+                rpcUrls: net.rpcUrl ? [net.rpcUrl] : [],
+                nativeCurrency: { name: net.symbol, symbol: net.symbol, decimals: 18 }
+              }]
+            });
+            await window.ethereum.request({method:'wallet_switchEthereumChain', params:[{chainId:net.chainId}]});
+          } catch (e2) {
+            addStatusLog('네트워크 추가/전환 실패: '+(e2.message||'알 수 없는 오류'), true);
+          }
+        } else if(e && e.code===4001) addStatusLog('사용자가 전환을 취소했습니다.', true);
+        else addStatusLog('전환 실패: '+(e.message||'알 수 없는 오류'), true);
+      }
     }
 
     // ===== 스테이킹 =====
@@ -580,7 +654,7 @@
         try {
           const durBN = await staking.duration();
           const dur = Number(durBN.toString());
-          durationEl.textContent = `${dur} (${formatSecAsDHMS(dur)})`; // [NEW] 사람이 읽기 쉽게
+          durationEl.textContent = `${dur} (${formatSecAsDHMS(dur)})`; 
         } catch { durationEl.textContent='?'; }
 
         try { const fin = await staking.finishAt(); finishAtEl.textContent = ts2str(fin); } catch { finishAtEl.textContent='?'; }

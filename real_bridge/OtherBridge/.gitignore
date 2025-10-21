@@ -1,7 +1,6 @@
-# .gitignore 파일
-
-# Node.js
-node_modules/
-
-# 로컬 환경 변수 파일 (절대 커밋 금지)
+# env / runtime config
 .env
+config.js
+
+# node
+node_modules/

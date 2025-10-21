@@ -1,0 +1,47 @@
+name: Deploy Frontend (Pages)
+
+on:
+  push:
+    branches: [ main ]
+    paths:
+      - 'index.html'
+      - 'app.js'
+      - 'scripts/gen-config.mjs'
+      - '.github/workflows/pages.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - run: node scripts/gen-config.mjs
+        env:
+          # 공개 가능한 값은 Repository Variables로, 비밀이면 Secrets로
+          JKK_CHAIN_ID: ${{ vars.JKK_CHAIN_ID }}
+          TMZ_CHAIN_ID: ${{ vars.TMZ_CHAIN_ID }}
+          JKK_TOKEN_ADDRESS: ${{ vars.JKK_TOKEN_ADDRESS }}
+          TMZ_TOKEN_ADDRESS: ${{ vars.TMZ_TOKEN_ADDRESS }}
+          JKK_BRIDGE_ADDRESS: ${{ vars.JKK_BRIDGE_ADDRESS }}
+          TMZ_BRIDGE_ADDRESS: ${{ vars.TMZ_BRIDGE_ADDRESS }}
+          STAKING_ADDRESS: ${{ vars.STAKING_ADDRESS }}
+          SWAP_ADDRESS: ${{ vars.SWAP_ADDRESS }}
+          MINTER_ROLE_HASH: ${{ vars.MINTER_ROLE_HASH }}
+          JKK_RPC_URL: ${{ vars.JKK_RPC_URL }}
+          TMZ_RPC_URL: ${{ vars.TMZ_RPC_URL }}
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: ./OtherBridge 
+  deploy:
+    needs: build
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/deploy-pages@v4

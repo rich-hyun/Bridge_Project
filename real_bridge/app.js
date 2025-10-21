@@ -1,8 +1,11 @@
 // app.js (덮어쓰기용 전체 파일)
-// === 반드시 수정할 부분 ===
-const TOKEN_A_ADDRESS = "0x4293609b058387ed14e25ee21eb299432bb0e06c"; // A토큰 주소
-const TOKEN_B_ADDRESS = "0x0f1434a8b22cb97e7e2c637015f87cac3e7e0f48"; // B토큰 주소
-const SWAP_ADDRESS    = "0x6310858b6e26f4f04a3d52effffa300446ed502c"; // Swap 컨트랙트 주소
+// ==== 런타임 설정 ====
+const CFG = window.APP_CONFIG || {};
+
+const TOKEN_A_ADDRESS = CFG.contracts?.token?.TMZ   || "0x0000000000000000000000000000000000000000"; // TMZ
+const TOKEN_B_ADDRESS = CFG.contracts?.token?.TMZ2  || "0x0000000000000000000000000000000000000000"; // TMZ2
+const SWAP_ADDRESS    = CFG.contracts?.swap         || "0x0000000000000000000000000000000000000000";
+
 const RELAYER_ADDRESS = "";
 
 // ABI (필요한 함수만)
@@ -386,25 +389,17 @@ async function checkBalances(suffix = null) {
 }
 
 // ----------------- UI 바인딩 -----------------
-function bindAllUi() {
-  SUFFIXES.forEach(suf => {
-    const cb = el("connectButton", suf);
-    if (cb) cb.onclick = connect; // 모든 connect 버튼은 전역 connect 호출
-
-    const aA = el("approveAButton", suf);
-    if (aA) aA.onclick = () => approveA(suf);
-
-    const aB = el("approveBButton", suf);
-    if (aB) aB.onclick = () => approveB(suf);
-
-    const sA = el("swapAtoBButton", suf);
-    if (sA) sA.onclick = () => swapAtoB(suf);
-
-    const sB = el("swapBtoAButton", suf);
-    if (sB) sB.onclick = () => swapBtoA(suf);
-
-    const bb = el("balanceButton", suf);
-    if (bb) bb.onclick = () => checkBalances(suf);
+function bindAllUi(){
+  SUFFIXES.forEach(s => {
+    el("connectButton",s)?.addEventListener('click', connect);
+    el("approveAButton",s)?.addEventListener('click', ()=>approveA(s));
+    el("approveBButton",s)?.addEventListener('click', ()=>approveB(s));
+    el("swapAtoBButton",s)?.addEventListener('click', ()=>swapAtoB(s));
+    el("swapBtoAButton",s)?.addEventListener('click', ()=>swapBtoA(s));
+    el("balanceButton",s)?.addEventListener('click', ()=>checkBalances(s));
+    // [New] 네트워크 전환 버튼
+    el("switchToTMZButton",s)?.addEventListener('click', switchToTMZ);
+    el("switchToJKKButton",s)?.addEventListener('click', switchToJKK);
   });
 }
 
