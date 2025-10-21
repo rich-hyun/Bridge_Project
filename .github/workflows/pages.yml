@@ -48,7 +48,7 @@ jobs:
       - name: Upload artifact (OtherBridge)  # 실제 index.html 있는 폴더
         uses: actions/upload-pages-artifact@v3
         with:
-          path: ./
+          path: ./OtherBridge
 
   deploy:
     needs: build
